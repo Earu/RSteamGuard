@@ -1,9 +1,6 @@
-static SECRET: &'static str = "";
-
-use copypasta::{ClipboardContext, ClipboardProvider};
 use data_encoding::{BASE32, BASE64};
 use oath::{totp_raw_custom_time, HashType};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 fn main() {
     let secret = get_secret();
@@ -16,26 +13,23 @@ fn main() {
         .duration_since(UNIX_EPOCH)
         .expect("Clock may have gone backwards")
         .as_secs();
-    let left_time = 30 - current_time.wrapping_rem(30);
     let rstring: u64 = totp_raw_custom_time(&rhex, 10, 0, 30, current_time, &HashType::SHA1);
     let passcode: String = base26(&rstring);
-    let mut ctx = ClipboardContext::new().unwrap();
-    ctx.set_contents(passcode.to_owned()).unwrap();
-    println!("{}\n{}s left", passcode, left_time);
-    // Extra time for writting xcb or it would fail
-    std::thread::sleep(Duration::from_millis(10));
-}
 
-#[cfg(feature = "predefined_secret")]
-fn get_secret() -> String {
-    SECRET.to_string()
+    let exe_path = std::env::current_exe().unwrap();
+    let passcode_path = {
+        let target_dir_path = exe_path.parent().unwrap();
+        target_dir_path.join(std::path::Path::new("passcode.txt"))
+    };
+
+    match std::fs::write(passcode_path, passcode) {
+        Ok(_) => println!("{}", "created passcode file successfully!"),
+        Err(e) => eprintln!("{}", e),
+    }
 }
 
 #[cfg(not(feature = "predefined_secret"))]
 fn get_secret() -> String {
-    if SECRET.len() > 0 {
-        return SECRET.to_string();
-    }
     match std::env::var("SECRET") {
         Ok(result) => return result.to_string(),
         Err(err) => {
